@@ -34,7 +34,7 @@ const CONFIG = {
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15'
   ],
   
-  DEBUG: true                                   // Enable debug logging
+  DEBUG: false                                   // Enable debug logging
 };
 
 // Initialize cache
@@ -351,5 +351,5 @@ function resolveUrl(baseUrl: string, relativeUrl: string): string {
 }
 
 // Start the server
-console。log(`Starting M3U8 Filter server on port ${CONFIG.PORT}`);
+console.log(`Starting M3U8 Filter server on port ${CONFIG.PORT}`);
 serve(handleRequest， { port: CONFIG.PORT });
