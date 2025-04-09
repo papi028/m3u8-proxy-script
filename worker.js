@@ -8,7 +8,9 @@
  * 4. Filters discontinuity markers
  * 5. Uses KV for caching
  * 6. Auto-resolves master playlists
- * 7. Detects non-M3U8 content and redirects to original URL
+ * 7. Detects non-M3U8 content:
+ *    - If it's a media file (audio/video/image), proxies through TS proxy
+ *    - Otherwise redirects to original URL
  * 8. cf部署时需要创建kv存储，绑定时，需要设置变量名称为M3U8_PROXY_KV
  */
 
@@ -32,6 +34,26 @@ const CONFIG = {
   
   DEBUG: false                                   // Enable debug logging
 };
+
+// Media file extensions to check
+const MEDIA_FILE_EXTENSIONS = [
+  // Video formats
+  '.mp4', '.webm', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.f4v', '.m4v', '.3gp', '.3g2', '.ts', '.mts', '.m2ts',
+  // Audio formats
+  '.mp3', '.wav', '.ogg', '.aac', '.m4a', '.flac', '.wma', '.alac', '.aiff', '.opus',
+  // Image formats
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.svg', '.avif', '.heic'
+];
+
+// Media content types to check
+const MEDIA_CONTENT_TYPES = [
+  // Video types
+  'video/', 
+  // Audio types
+  'audio/',
+  // Image types
+  'image/'
+];
 
 /**
  * Main request handler
@@ -66,8 +88,15 @@ async function handleRequest(request, env) {
     
     // Check if content is actually an M3U8 file
     if (!isM3u8Content(content, contentType)) {
-      // Not an M3U8 file, redirect to original URL
-      return Response.redirect(targetUrl, 302);
+      // Not an M3U8 file, check if it's a media file
+      if (isMediaFile(targetUrl, contentType)) {
+        if (CONFIG.DEBUG) console.log(`[Media file detected] Redirecting to TS proxy: ${targetUrl}`);
+        return Response.redirect(proxyTsUrl(targetUrl), 302);
+      } else {
+        // Not a media file, redirect to original URL
+        if (CONFIG.DEBUG) console.log(`[Not media content] Redirecting to original URL: ${targetUrl}`);
+        return Response.redirect(targetUrl, 302);
+      }
     }
     
     // Process the M3U8 content
@@ -102,6 +131,31 @@ function isM3u8Content(content, contentType) {
   // Check content for M3U8 signature
   if (content && content.trim().startsWith('#EXTM3U')) {
     return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Check if the file is a media file based on extension and content type
+ */
+function isMediaFile(url, contentType) {
+  // Check by content type
+  if (contentType) {
+    for (const mediaType of MEDIA_CONTENT_TYPES) {
+      if (contentType.toLowerCase().startsWith(mediaType)) {
+        return true;
+      }
+    }
+  }
+  
+  // Check by file extension
+  const urlLower = url.toLowerCase();
+  for (const ext of MEDIA_FILE_EXTENSIONS) {
+    // Check if URL ends with the extension or has it followed by a query parameter
+    if (urlLower.endsWith(ext) || urlLower.includes(`${ext}?`)) {
+      return true;
+    }
   }
   
   return false;
