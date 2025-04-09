@@ -8,6 +8,7 @@
  * 4. Filters discontinuity markers
  * 5. Supports caching
  * 6. Auto-resolves master playlists recursively
+ * 7. Detects non-M3U8 content and redirects to original URL
  */
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
@@ -110,7 +111,19 @@ async function handleRequest(request: Request): Promise<Response> {
     
     // Process the M3U8 URL
     if (CONFIG.DEBUG) console.log(`[Processing] ${targetUrl}`);
-    const processed = await processM3u8Url(targetUrl);
+    
+    // Fetch content with type information
+    const { content, contentType } = await fetchContentWithType(targetUrl);
+    
+    // Check if content is actually an M3U8 file
+    if (!isM3u8Content(content, contentType)) {
+      // Not an M3U8 file, redirect to original URL
+      if (CONFIG.DEBUG) console.log(`[Not M3U8] Redirecting to original URL: ${targetUrl}`);
+      return Response.redirect(targetUrl, 302);
+    }
+    
+    // Process the M3U8 content
+    const processed = await processM3u8Content(targetUrl, content);
     
     // Cache the result
     if (CONFIG.CACHE_ENABLED) {
@@ -127,6 +140,25 @@ async function handleRequest(request: Request): Promise<Response> {
       { "Content-Type": "text/plain" }
     );
   }
+}
+
+/**
+ * Check if content is a valid M3U8 file
+ */
+function isM3u8Content(content: string, contentType: string): boolean {
+  // Check content type header
+  if (contentType && (
+      contentType.includes('application/vnd.apple.mpegurl') || 
+      contentType.includes('application/x-mpegurl'))) {
+    return true;
+  }
+  
+  // Check content for M3U8 signature
+  if (content && content.trim().startsWith('#EXTM3U')) {
+    return true;
+  }
+  
+  return false;
 }
 
 /**
@@ -171,19 +203,41 @@ function createM3u8Response(content: string): Response {
 }
 
 /**
- * Main M3U8 processing function
+ * Fetch content with content type information
  */
-async function processM3u8Url(url: string, recursionDepth = 0): Promise<string> {
-  if (recursionDepth > CONFIG.MAX_RECURSION) {
-    throw new Error(`Maximum recursion depth (${CONFIG.MAX_RECURSION}) exceeded`);
+async function fetchContentWithType(url: string): Promise<{ content: string; contentType: string }> {
+  const headers = new Headers({
+    'User-Agent': getRandomUserAgent(),
+    'Accept': '*/*',
+    'Referer': new URL(url).origin
+  });
+  
+  let fetchUrl = url;
+  if (CONFIG.PROXY_URL) {
+    fetchUrl = CONFIG.PROXY_URLENCODE 
+      ? `${CONFIG.PROXY_URL}${encodeURIComponent(url)}`
+      : `${CONFIG.PROXY_URL}${url}`;
   }
   
-  // Fetch the M3U8 content
-  const content = await fetchContent(url);
-  if (!content || !content.includes('#EXTM3U')) {
-    throw new Error('Invalid M3U8 content');
+  try {
+    const response = await fetch(fetchUrl, { headers });
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+    }
+    
+    const content = await response.text();
+    const contentType = response.headers.get('Content-Type') || '';
+    
+    return { content, contentType };
+  } catch (error) {
+    throw new Error(`Failed to fetch ${url}: ${error.message}`);
   }
-  
+}
+
+/**
+ * Process M3U8 content from the initial URL
+ */
+async function processM3u8Content(url: string, content: string, recursionDepth = 0): Promise<string> {
   // Check if this is a master playlist
   if (content.includes('#EXT-X-STREAM-INF')) {
     if (CONFIG.DEBUG) console.log(`[Master playlist detected] ${url}`);
@@ -199,6 +253,10 @@ async function processM3u8Url(url: string, recursionDepth = 0): Promise<string> 
  * Process a master playlist by selecting the first variant stream
  */
 async function processMasterPlaylist(url: string, content: string, recursionDepth: number): Promise<string> {
+  if (recursionDepth > CONFIG.MAX_RECURSION) {
+    throw new Error(`Maximum recursion depth (${CONFIG.MAX_RECURSION}) exceeded`);
+  }
+  
   const baseUrl = getBaseUrl(url);
   const lines = content.split('\n');
   
@@ -225,7 +283,27 @@ async function processMasterPlaylist(url: string, content: string, recursionDept
   
   // Recursively process the variant stream
   if (CONFIG.DEBUG) console.log(`[Selected variant] ${variantUrl}`);
-  return await processM3u8Url(variantUrl, recursionDepth + 1);
+  const { content: variantContent } = await fetchContentWithType(variantUrl);
+  return await processM3u8Content(variantUrl, variantContent, recursionDepth + 1);
+}
+
+/**
+ * Main M3U8 processing function (legacy method)
+ */
+async function processM3u8Url(url: string, recursionDepth = 0): Promise<string> {
+  if (recursionDepth > CONFIG.MAX_RECURSION) {
+    throw new Error(`Maximum recursion depth (${CONFIG.MAX_RECURSION}) exceeded`);
+  }
+  
+  // Fetch the M3U8 content
+  const { content, contentType } = await fetchContentWithType(url);
+  
+  // Check if content is actually an M3U8 file
+  if (!isM3u8Content(content, contentType)) {
+    throw new Error('Invalid M3U8 content');
+  }
+  
+  return processM3u8Content(url, content, recursionDepth);
 }
 
 /**
@@ -312,35 +390,6 @@ function proxyTsUrl(url: string): string {
   return CONFIG.PROXY_TS_URLENCODE 
     ? `${CONFIG.PROXY_TS}${encodeURIComponent(url)}`
     : `${CONFIG.PROXY_TS}${url}`;
-}
-
-/**
- * Fetch content with proper headers
- */
-async function fetchContent(url: string): Promise<string> {
-  const headers = new Headers({
-    'User-Agent': getRandomUserAgent(),
-    'Accept': '*/*',
-    'Referer': new URL(url).origin
-  });
-  
-  let fetchUrl = url;
-  if (CONFIG.PROXY_URL) {
-    fetchUrl = CONFIG.PROXY_URLENCODE 
-      ? `${CONFIG.PROXY_URL}${encodeURIComponent(url)}`
-      : `${CONFIG.PROXY_URL}${url}`;
-  }
-  
-  try {
-    const response = await fetch(fetchUrl, { headers });
-    if (!response.ok) {
-      throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
-    }
-    
-    return await response.text();
-  } catch (error) {
-    throw new Error(`Failed to fetch ${url}: ${error.message}`);
-  }
 }
 
 /**
