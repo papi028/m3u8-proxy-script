@@ -352,4 +352,4 @@ function resolveUrl(baseUrl: string, relativeUrl: string): string {
 
 // Start the server
 console.log(`Starting M3U8 Filter server on port ${CONFIG.PORT}`);
-serve(handleRequest， { port: CONFIG.PORT });
+serve(handleRequest, { port: CONFIG.PORT });
