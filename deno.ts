@@ -8,7 +8,9 @@
  * 4. Filters discontinuity markers
  * 5. Supports caching
  * 6. Auto-resolves master playlists recursively
- * 7. Detects non-M3U8 content and redirects to original URL
+ * 7. Detects non-M3U8 content and handles appropriately:
+ * 8. Media files are proxied through the TS proxy
+ * 9. Other content is redirected to original URL
  */
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
@@ -35,6 +37,26 @@ const CONFIG = {
   
   DEBUG: true                                   // Enable debug logging
 };
+
+// Media file extensions to check
+const MEDIA_FILE_EXTENSIONS = [
+  // Video formats
+  '.mp4', '.webm', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.f4v', '.m4v', '.3gp', '.3g2', '.ts', '.mts', '.m2ts',
+  // Audio formats
+  '.mp3', '.wav', '.ogg', '.aac', '.m4a', '.flac', '.wma', '.alac', '.aiff', '.opus',
+  // Image formats
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.svg', '.avif', '.heic'
+];
+
+// Media content types to check
+const MEDIA_CONTENT_TYPES = [
+  // Video types
+  'video/', 
+  // Audio types
+  'audio/',
+  // Image types
+  'image/'
+];
 
 // Simple in-memory cache implementation
 class SimpleCache {
@@ -117,9 +139,15 @@ async function handleRequest(request: Request): Promise<Response> {
     
     // Check if content is actually an M3U8 file
     if (!isM3u8Content(content, contentType)) {
-      // Not an M3U8 file, redirect to original URL
-      if (CONFIG.DEBUG) console.log(`[Not M3U8] Redirecting to original URL: ${targetUrl}`);
-      return Response.redirect(targetUrl, 302);
+      // Not an M3U8 file, check if it's a media file
+      if (isMediaFile(targetUrl, contentType)) {
+        if (CONFIG.DEBUG) console.log(`[Media file detected] Redirecting to TS proxy: ${targetUrl}`);
+        return Response.redirect(proxyTsUrl(targetUrl), 302);
+      } else {
+        // Not a media file, redirect to original URL
+        if (CONFIG.DEBUG) console.log(`[Not media content] Redirecting to original URL: ${targetUrl}`);
+        return Response.redirect(targetUrl, 302);
+      }
     }
     
     // Process the M3U8 content
@@ -156,6 +184,31 @@ function isM3u8Content(content: string, contentType: string): boolean {
   // Check content for M3U8 signature
   if (content && content.trim().startsWith('#EXTM3U')) {
     return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Check if the file is a media file based on extension and content type
+ */
+function isMediaFile(url: string, contentType: string): boolean {
+  // Check by content type
+  if (contentType) {
+    for (const mediaType of MEDIA_CONTENT_TYPES) {
+      if (contentType.toLowerCase().startsWith(mediaType)) {
+        return true;
+      }
+    }
+  }
+  
+  // Check by file extension
+  const urlLower = url.toLowerCase();
+  for (const ext of MEDIA_FILE_EXTENSIONS) {
+    // Check if URL ends with the extension or has it followed by a query parameter
+    if (urlLower.endsWith(ext) || urlLower.includes(`${ext}?`)) {
+      return true;
+    }
   }
   
   return false;
