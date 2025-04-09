@@ -26,7 +26,7 @@ const CONFIG = {
   CACHE_TTL: 3600,                               // Cache TTL in seconds
   CACHE_SIZE: 500,                               // Max cache entries
   
-  MAX_RECURSION: 10,                             // Max recursion for nested playlists
+  MAX_RECURSION: 50,                             // Max recursion for nested playlists
   FILTER_DISCONTINUITY: true,                    // Whether to filter discontinuity markers
   
   USER_AGENTS: [
