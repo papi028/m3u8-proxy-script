@@ -16,8 +16,8 @@ import { LRUCache } from "https://deno.land/x/lru_cache/mod.ts";
 // Configuration
 const CONFIG = {
   PORT: 8000,
-  PROXY_URL: '',                                 // Main proxy URL (leave empty for direct fetch)
-  PROXY_URLENCODE: false,                        // Whether to URL-encode target URLs
+  PROXY_URL: 'https://proxy.mengze.vip/proxy/',                                 // Main proxy URL (leave empty for direct fetch)
+  PROXY_URLENCODE: true,                        // Whether to URL-encode target URLs
   
   PROXY_TS: 'https://proxy.mengze.vip/proxy/',   // TS segment proxy URL
   PROXY_TS_URLENCODE: true,                      // Whether to URL-encode TS URLs
