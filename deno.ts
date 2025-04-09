@@ -10,8 +10,7 @@
  * 6. Auto-resolves master playlists recursively
  */
 
-import { serve } from "https://deno.land/std/http/server.ts";
-import { LRUCache } from "https://deno.land/x/lru_cache/mod.ts";
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 // Configuration
 const CONFIG = {
@@ -24,7 +23,6 @@ const CONFIG = {
   
   CACHE_ENABLED: true,
   CACHE_TTL: 3600,                               // Cache TTL in seconds
-  CACHE_SIZE: 500,                               // Max cache entries
   
   MAX_RECURSION: 50,                             // Max recursion for nested playlists
   FILTER_DISCONTINUITY: true,                    // Whether to filter discontinuity markers
@@ -34,14 +32,54 @@ const CONFIG = {
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15'
   ],
   
-  DEBUG: false                                   // Enable debug logging
+  DEBUG: true                                   // Enable debug logging
 };
 
+// Simple in-memory cache implementation
+class SimpleCache {
+  private cache: Map<string, { value: string; expires: number }>;
+  
+  constructor(private ttl: number = 3600) {
+    this.cache = new Map();
+  }
+  
+  set(key: string, value: string): void {
+    this.cache.set(key, {
+      value,
+      expires: Date.now() + this.ttl * 1000
+    });
+  }
+  
+  get(key: string): string | null {
+    const item = this.cache.get(key);
+    if (!item) return null;
+    
+    if (Date.now() > item.expires) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return item.value;
+  }
+  
+  // Periodically clean expired items
+  cleanUp(): void {
+    const now = Date.now();
+    for (const [key, item] of this.cache.entries()) {
+      if (now > item.expires) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
 // Initialize cache
-const cache = new LRUCache({
-  capacity: CONFIG.CACHE_SIZE,
-  expirationTimeInMS: CONFIG.CACHE_TTL * 1000
-});
+const cache = new SimpleCache(CONFIG.CACHE_TTL);
+
+// Start a periodic cleanup
+if (CONFIG.CACHE_ENABLED) {
+  setInterval(() => cache.cleanUp(), 60000); // Clean every minute
+}
 
 /**
  * Main request handler
