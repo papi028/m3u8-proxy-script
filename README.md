@@ -28,6 +28,17 @@ https://deployurl/m3u8filter/https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
 m3u8filter.php?url=m3u8link
 m3u8filter.php/m3u8filter/m3u8link
 (伪静态规则： m3u8filter/m3u8link)
+### nginx
+```
+rewrite ^/m3u8filter/(https?):/(.*)$ /m3u8filter.php?url=$1://$2 last;
+```
+### apache
+```
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^m3u8filter/(https?):/(.*)$ m3u8filter.php?url=$1://$2 [L,QSA]
+</IfModule>
+```
 
 
 ## 主要优化
