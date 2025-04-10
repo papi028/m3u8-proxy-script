@@ -1,4 +1,4 @@
-# m3u8-proxy-script,but not only m3u8
+# m3u8 filter ads proxy script
 cf worker，deno，php多语言m3u8播放链接去广告代理加速脚本，另外支持TS代理非m3u8类型的音视频及图片资源
 
 ## 支持双代理设置
