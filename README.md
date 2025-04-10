@@ -15,7 +15,9 @@ M3U8 Proxy Filter Script 是一个多语言实现的 HLS (HTTP Live Streaming) �
 - **缓存支持**：
   - PHP：本地文件缓存
   - Deno：内存缓存
-  - Cloudflare Worker：KV 存储（需设置变量名称为 `M3U8_PROXY_KV`）
+  - Cloudflare Worker：
+    worker.js: KV 存储版（需设置变量名称为 `M3U8_PROXY_KV`）
+    worker-chache.js: 基于worker的边缘网络自带cache缓存，可以直接调用，直接缓存，无限制且无需配置(感谢L站edwa佬友提供的思路)
 
 ### 高级功能
 - **主播放列表解析**：自动解析主播放列表（带递归深度限制）
@@ -123,8 +125,13 @@ rewrite ^/m3u8filter/(https?):/(.*)$ /m3u8filter.php?url=$1://$2 last;
 ### 构建与部署
 
 #### Cloudflare Worker
+worker.js
 1. 创建新的 Worker 项目
 2. 绑定 KV 命名空间（名称为 `M3U8_PROXY_KV`）
+3. 部署脚本
+worker-cache.js
+1. 创建新的 Worker 项目
+2. 复制代码
 3. 部署脚本
 
 #### Deno
