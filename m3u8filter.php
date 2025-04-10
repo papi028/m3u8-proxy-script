@@ -15,8 +15,8 @@
  */
 
 // ========== 配置区域 ==========
-define('PROXY_URL', 'https://apis.eray.cc/proxy/');    // 主代理地址
-define('PROXY_URLENCODE', false);                     // 是否编码目标URL
+define('PROXY_URL', 'https://proxy.mengze.vip/proxy/');    // 主代理地址
+define('PROXY_URLENCODE', true);                     // 是否编码目标URL
 
 define('PROXY_TS', 'https://proxy.mengze.vip/proxy/'); // TS分片代理地址
 define('PROXY_TS_URLENCODE', true);                   // 是否编码TS URL
