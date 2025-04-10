@@ -8,7 +8,7 @@ cf worker，deno，php多语言m3u8播放链接去广告代理加速脚本
  * 2. 支持 EXT-X-MAP 初始化段代理
  * 3. 处理加密流 (EXT-X-KEY)
  * 4. 可配置是否过滤 discontinuity 标记
- * 5. 支持(PHP:本地，deno:内存，worker:kv)缓存
+ * 5. 支持缓存；(PHP:本地文件；deno:内存；worker:kv【KV设置变量名称为M3U8_PROXY_KV】)
  * 6. 自动解析主播放列表(带递归深度限制)
  * 7. 检测非M3U8内容:
  *    - 如果是音视频/图片文件则使用TS代理跳转
