@@ -15,8 +15,8 @@
  */
 
 // ========== 配置区域 ==========
-define('PROXY_URL', 'https://proxy.mengze.vip/proxy/');    // 主代理地址
-define('PROXY_URLENCODE', true);                     // 是否编码目标URL
+define('PROXY_URL', 'https://apis.eray.cc/proxy/');    // 主代理地址
+define('PROXY_URLENCODE', false);                     // 是否编码目标URL
 
 define('PROXY_TS', 'https://proxy.mengze.vip/proxy/'); // TS分片代理地址
 define('PROXY_TS_URLENCODE', true);                   // 是否编码TS URL
@@ -25,7 +25,7 @@ define('CACHE_DIR', 'm3u8files/');                    // 缓存目录
 define('CACHE_TIME', 86400);                          // 缓存时间(秒)
 
 define('MAX_RECURSION', 30);                           // 最大递归深度(主播放列表解析)
-define('FILTER_DISCONTINUITY', true);           |      // 是否过滤discontinuity标记
+define('FILTER_DISCONTINUITY', true);                   // 是否过滤discontinuity标记
 
 // 媒体文件扩展名
 define('MEDIA_FILE_EXTENSIONS', [
