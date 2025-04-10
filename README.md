@@ -1,10 +1,10 @@
 # m3u8 filter ads proxy script
 cf worker，deno，php多语言m3u8播放链接去广告代理加速脚本
-/**
+
  * M3U8 Proxy Filter Script with EXT-X-MAP Support
  *
  * 功能：
- * 1. 支持使用代理获取 M3U8 文件并重写其中的 TS/fMP4 分片 URL
+ * 1. 支持使用代理获取 M3U8 文件并使用代理重写其中的 TS/fMP4 分片 URL
  * 2. 支持 EXT-X-MAP 初始化段代理
  * 3. 处理加密流 (EXT-X-KEY)
  * 4. 可配置是否过滤 discontinuity 标记
@@ -13,7 +13,6 @@ cf worker，deno，php多语言m3u8播放链接去广告代理加速脚本
  * 7. 检测非M3U8内容:
  *    - 如果是音视频/图片文件则使用TS代理跳转
  *    - 其他情况直接跳转原始URL
- */
 
 ## 全部脚本支持双代理设置
 ## 支持m3u8全局加速及去除广告标记
