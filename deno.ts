@@ -9,8 +9,8 @@
  * 5. Supports caching
  * 6. Auto-resolves master playlists recursively
  * 7. Detects non-M3U8 content and handles appropriately:
- * 8. Media files are proxied through the TS proxy
- * 9. Other content is redirected to original URL
+ *    - Media files are proxied through the TS proxy
+ *    - Other content is redirected to original URL
  */
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
