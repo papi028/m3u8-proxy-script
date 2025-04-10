@@ -3,7 +3,7 @@
 
 ## 项目概述
 
-M3U8 Proxy Filter Script 是一个多语言实现的 HLS (HTTP Live Streaming) 代理过滤脚本，支持 Cloudflare Worker、Deno 和 PHP 环境。脚本提供 M3U8 播放链接的去广告、代理加速功能，并支持多种 HLS 协议特性。
+M3U8 Proxy Filter Script 是一个多语言实现的 HLS (HTTP Live Streaming) 代理过滤脚本，支持Nodejs Cloudflare Worker、Deno 和 PHP 环境。脚本提供 M3U8 播放链接的去广告、代理加速功能，并支持多种 HLS 协议特性。
 
 ## 功能特性
 
