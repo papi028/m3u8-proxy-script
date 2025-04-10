@@ -1,9 +1,9 @@
 <?php
 /**
  * M3U8 Proxy and Filter Script with EXT-X-MAP Support
- *
+ * 
  * 功能：
- * 1. 使用 CURL 代理获取 M3U8 文件并重写其中的 TS/fMP4 分片 URL
+ * 1. 代理 M3U8 文件并重写其中的 TS/fMP4 分片 URL
  * 2. 支持 EXT-X-MAP 初始化段代理
  * 3. 处理加密流 (EXT-X-KEY)
  * 4. 可配置是否过滤 discontinuity 标记
@@ -15,17 +15,17 @@
  */
 
 // ========== 配置区域 ==========
-define('PROXY_URL', 'https://proxy.mengze.vip/proxy/');    // 主代理地址；如不需要可留空字符串
-define('PROXY_URLENCODE', true);                        // 是否编码目标URL
+define('PROXY_URL', 'https://apis.eray.cc/proxy/');    // 主代理地址
+define('PROXY_URLENCODE', false);                     // 是否编码目标URL
 
-define('PROXY_TS', 'https://proxy.mengze.vip/proxy/');   // TS分片代理地址；如不需要可留空字符串
-define('PROXY_TS_URLENCODE', true);                      // 是否编码TS URL
+define('PROXY_TS', 'https://proxy.mengze.vip/proxy/'); // TS分片代理地址
+define('PROXY_TS_URLENCODE', true);                   // 是否编码TS URL
 
-define('CACHE_DIR', 'm3u8files/');                       // 缓存目录
-define('CACHE_TIME', 86400);                             // 缓存时间(秒)
+define('CACHE_DIR', 'm3u8files/');                    // 缓存目录
+define('CACHE_TIME', 86400);                          // 缓存时间(秒)
 
-define('MAX_RECURSION', 30);                             // 最大递归深度(主播放列表解析)
-define('FILTER_DISCONTINUITY', true);                    // 是否过滤 discontinuity 标记
+define('MAX_RECURSION', 30);                           // 最大递归深度(主播放列表解析)
+define('FILTER_DISCONTINUITY', true);                   // 是否过滤discontinuity标记
 
 // 媒体文件扩展名
 define('MEDIA_FILE_EXTENSIONS', [
@@ -40,7 +40,7 @@ define('MEDIA_FILE_EXTENSIONS', [
 // 媒体内容类型
 define('MEDIA_CONTENT_TYPES', [
     // 视频类型
-    'video/',
+    'video/', 
     // 音频类型
     'audio/',
     // 图片类型
@@ -52,7 +52,6 @@ $userAgents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Safari/605.1.15'
 ];
-
 
 // ========== 核心函数 ==========
 
@@ -102,64 +101,35 @@ function writeToCache($url, $content) {
 }
 
 /**
- * 使用 curl 获取远程内容。增加超时设置和错误处理。
- *
- * @param string $url 请求的 URL
- * @param array $customHeaders 可选：自定义 HTTP 头
- * @return array [ 'content' => string|false, 'contentType' => string ]
+ * 获取远程内容(带内容类型检测)
  */
-function curlFetch($url, $customHeaders = []) {
+function fetchContentWithType($url) {
     global $userAgents;
     
-    // 如果配置了代理 URL，则拼接代理路径
+    $options = [
+        'http' => [
+            'method' => 'GET',
+            'header' => "User-Agent: " . $userAgents[array_rand($userAgents)] . "\r\n" .
+                       "Accept: */*\r\n"
+        ]
+    ];
+    
     if (!empty(PROXY_URL)) {
         $url = PROXY_URL . (PROXY_URLENCODE ? urlencode($url) : $url);
     }
     
-    $ch = curl_init();
-    
-    // 构造请求头，默认 Accept: */*
-    $defaultHeaders = [
-        'Accept: */*'
-    ];
-    $allHeaders = array_merge($defaultHeaders, $customHeaders);
-    
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_USERAGENT => $userAgents[array_rand($userAgents)],
-        CURLOPT_HTTPHEADER => $allHeaders,
-        CURLOPT_HEADER => true,         // 同时返回header和body部分
-        CURLOPT_CONNECTTIMEOUT => 30,     // 建立连接超时（秒）
-        CURLOPT_TIMEOUT => 60,            // 整体超时（秒）
-    ]);
-    
-    $response = curl_exec($ch);
-    if (curl_errno($ch)) {
-        error_log('CURL Error (' . curl_errno($ch) . '): ' . curl_error($ch));
-        curl_close($ch);
-        return [
-            'content' => false,
-            'contentType' => ''
-        ];
-    }
-    
-    $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
-    $headersStr = substr($response, 0, $headerSize);
-    $content = substr($response, $headerSize);
+    $content = @file_get_contents($url, false, stream_context_create($options));
     $contentType = '';
     
-    // 解析 header 获取内容类型
-    $headerLines = explode("\r\n", $headersStr);
-    foreach ($headerLines as $header) {
-        if (stripos($header, 'Content-Type:') === 0) {
-            $contentType = trim(substr($header, 13));
-            break;
+    // 尝试获取内容类型
+    if (isset($http_response_header)) {
+        foreach ($http_response_header as $header) {
+            if (strpos(strtolower($header), 'content-type:') === 0) {
+                $contentType = trim(substr($header, 13));
+                break;
+            }
         }
     }
-    
-    curl_close($ch);
     
     return [
         'content' => $content,
@@ -168,24 +138,17 @@ function curlFetch($url, $customHeaders = []) {
 }
 
 /**
- * 获取远程内容(封装 curlFetch)
- */
-function fetchContentWithType($url) {
-    return curlFetch($url);
-}
-
-/**
- * 判断内容是否为 M3U8 格式(通过内容头或内容签名)
+ * 检查是否为M3U8内容
  */
 function isM3u8Content($content, $contentType) {
-    // 根据 Content-Type 头判断
-    if ($contentType &&
-        (stripos($contentType, 'application/vnd.apple.mpegurl') !== false ||
-         stripos($contentType, 'application/x-mpegurl') !== false)) {
+    // 检查内容类型头
+    if ($contentType && (
+        stripos($contentType, 'application/vnd.apple.mpegurl') !== false || 
+        stripos($contentType, 'application/x-mpegurl') !== false)) {
         return true;
     }
     
-    // 检查文件开头字符
+    // 检查内容签名
     if ($content && strpos(trim($content), '#EXTM3U') === 0) {
         return true;
     }
@@ -194,10 +157,10 @@ function isM3u8Content($content, $contentType) {
 }
 
 /**
- * 判断是否为媒体文件（通过扩展名或内容类型）
+ * 检查是否为媒体文件(通过扩展名或内容类型)
  */
 function isMediaFile($url, $contentType) {
-    // 根据 Content-Type 判断
+    // 检查内容类型
     if ($contentType) {
         foreach (MEDIA_CONTENT_TYPES as $mediaType) {
             if (stripos($contentType, $mediaType) === 0) {
@@ -206,12 +169,12 @@ function isMediaFile($url, $contentType) {
         }
     }
     
-    // 根据 URL 扩展名判断
+    // 检查文件扩展名
     $urlLower = strtolower($url);
     foreach (MEDIA_FILE_EXTENSIONS as $ext) {
-        // 判断 URL 中是否包含扩展名，例如以该扩展名结尾或者扩展名后跟查询参数
-        if (strpos($urlLower, $ext) !== false &&
-           (substr($urlLower, -strlen($ext)) === $ext || strpos($urlLower, $ext . '?') !== false)) {
+        // 检查URL是否以扩展名结尾或扩展名后跟查询参数
+        if (strpos($urlLower, $ext) !== false && 
+            (strpos($urlLower, $ext . '?') !== false || substr($urlLower, -strlen($ext)) === $ext)) {
             return true;
         }
     }
@@ -220,7 +183,7 @@ function isMediaFile($url, $contentType) {
 }
 
 /**
- * 生成 TS 分片代理 URL
+ * 生成TS代理URL
  */
 function proxyTsUrl($url) {
     if (empty(PROXY_TS)) return $url;
@@ -229,7 +192,7 @@ function proxyTsUrl($url) {
 }
 
 /**
- * 解析相对 URL 为绝对 URL
+ * 解析相对URL为绝对URL
  */
 function resolveUrl($baseUrl, $relativeUrl) {
     if (preg_match('/^https?:\/\//i', $relativeUrl)) return $relativeUrl;
@@ -241,7 +204,7 @@ function resolveUrl($baseUrl, $relativeUrl) {
     
     $scheme = $parsed['scheme'];
     $host = $parsed['host'];
-    $port   = isset($parsed['port']) ? ':' . $parsed['port'] : '';
+    $port = isset($parsed['port']) ? ':' . $parsed['port'] : '';
     
     if (strpos($relativeUrl, '/') === 0) {
         return "$scheme://$host$port$relativeUrl";
@@ -256,7 +219,7 @@ function resolveUrl($baseUrl, $relativeUrl) {
 }
 
 /**
- * 修改加密密钥 URI（通过代理 TS 地址）
+ * 修改加密密钥URI
  */
 function modifyKeyUri($line, $baseUrl) {
     if (preg_match('/URI="([^"]+)"/', $line, $matches)) {
@@ -270,10 +233,7 @@ function modifyKeyUri($line, $baseUrl) {
 }
 
 /**
- * 修改 M3U8 内容中的 URL ：
- * 1. 修改 EXT-X-MAP 初始化段；
- * 2. 修改加密密钥；
- * 3. 修改媒体分片地址（通过 TS 代理）。
+ * 修改M3U8内容中的URL
  */
 function modifyM3u8Urls($content, $baseUrl) {
     $lines = explode("\n", $content);
@@ -288,7 +248,7 @@ function modifyM3u8Urls($content, $baseUrl) {
             continue;
         }
         
-        // 处理 EXT-X-MAP 初始化段
+        // 处理EXT-X-MAP
         if (strpos($trimmed, '#EXT-X-MAP:') === 0) {
             if (preg_match('/URI="([^"]+)"/', $trimmed, $matches)) {
                 $absoluteUri = resolveUrl($baseUrl, $matches[1]);
@@ -307,7 +267,7 @@ function modifyM3u8Urls($content, $baseUrl) {
             continue;
         }
         
-        // 处理媒体分片：EXTINF 后一行通常为媒体文件 URL
+        // 处理媒体分片
         if (strpos($trimmed, '#EXTINF:') === 0) {
             $isNextLineMedia = true;
             $modified[] = $line;
@@ -329,7 +289,7 @@ function modifyM3u8Urls($content, $baseUrl) {
 }
 
 /**
- * 对 M3U8 内容过滤 discontinuity 标记
+ * 过滤discontinuity标记
  */
 function filterDiscontinuity($content) {
     if (!FILTER_DISCONTINUITY) return $content;
@@ -340,7 +300,7 @@ function filterDiscontinuity($content) {
 }
 
 /**
- * 获取基础 URL 路径，用于解析相对地址
+ * 获取基础URL路径
  */
 function getBaseDirectoryUrl($url) {
     $parsed = parse_url($url);
@@ -358,10 +318,10 @@ function getBaseDirectoryUrl($url) {
 }
 
 /**
- * 主处理函数：对提供的 M3U8 URL 进行代理和过滤处理
+ * 主处理函数
  */
 function processM3u8Url($url) {
-    // 尝试从缓存中获取
+    // 尝试从缓存获取
     if (($cached = getFromCache($url)) !== false) {
         header('Content-Type: application/vnd.apple.mpegurl');
         header('Access-Control-Allow-Origin: *');
@@ -369,70 +329,60 @@ function processM3u8Url($url) {
         return;
     }
     
-    // 使用 CURL 获取内容和响应头类型
+    // 获取原始内容(带内容类型检测)
     $result = fetchContentWithType($url);
     $content = $result['content'];
     $contentType = $result['contentType'];
     
-    // 判断是否为 M3U8 内容
+    // 检查是否为M3U8内容
     if (!isM3u8Content($content, $contentType)) {
-        // 非 M3U8 文件，则判断是否为媒体文件，采用 TS代理跳转
+        // 不是M3U8，检查是否为媒体文件
         if (isMediaFile($url, $contentType)) {
             header('Location: ' . proxyTsUrl($url));
         } else {
-            // 非媒体文件，直接跳转到原始 URL
+            // 不是媒体文件，直接跳转原始URL
             header("Location: $url");
         }
         exit;
     }
     
-    // 主播放列表递归解析。如果遇到 EXT-X-STREAM-INF，则根据其后续的媒体 URL 重新请求
+    // 处理主播放列表(带递归深度限制)
     $currentUrl = $url;
     $recursionCount = 0;
     while (strpos($content, '#EXT-X-STREAM-INF') !== false) {
         if ($recursionCount >= MAX_RECURSION) {
-            error_log("Exceeded maximum recursion count: " . MAX_RECURSION);
             break;
         }
         
         $lines = array_filter(explode("\n", $content), 'trim');
         foreach ($lines as $line) {
-            $line = trim($line);
-            if (empty($line)) continue;
-            if ($line[0] !== '#') {
-                $currentUrl = resolveUrl($currentUrl, $line);
+            if (trim($line)[0] !== '#' && !empty(trim($line))) {
+                $currentUrl = resolveUrl($currentUrl, trim($line));
                 break;
             }
         }
         
         $result = fetchContentWithType($currentUrl);
-        if (!$result['content']) {
-            error_log("Failed to fetch M3U8 content from URL: " . $currentUrl);
-            break;
-        }
         $content = $result['content'];
         $recursionCount++;
     }
     
-    // 处理并修改 M3U8 中的 URL
+    // 处理内容
     $baseUrl = getBaseDirectoryUrl($currentUrl);
     $filtered = filterDiscontinuity($content);
     $modified = modifyM3u8Urls($filtered, $baseUrl);
     
-    // 写入缓存后返回
+    // 写入缓存并输出
     writeToCache($url, $modified);
     header('Content-Type: application/vnd.apple.mpegurl');
     header('Access-Control-Allow-Origin: *');
     echo $modified;
 }
 
-/**
- * 获取目标 URL
- */
 function getTargetUrl() {
     $url = isset($_GET['url']) ? $_GET['url'] : null;
     
-    // 如果 URL 参数为空，则尝试从 REQUEST_URI 中提取参数
+    // 如果URL是空的，检查路径中是否包含URL
     if (empty($url)) {
         $path = $_SERVER['REQUEST_URI'] ?? '';
         if (preg_match('/\/m3u8filter\/(.+)/', $path, $matches)) {
@@ -451,4 +401,5 @@ if (!empty($TargetUrl)) {
     header('Content-Type: text/plain');
     echo "请通过 url 参数提供M3U8地址";
 }
+
 ?>
