@@ -5,7 +5,7 @@
 脚本内示例的代理地址`https://proxy.mengze.vip/proxy/`已失效，请自行部署cf代理或其他代理进行替换，cf代理部署参考[cloudflare-safeproxy](https://github.com/eraycc/cloudflare-safeproxy)，部署后，将代理地址替换为API代理地址，URL编码配置为false(也可自行修改cf代理脚本代码，使其支持URL编码)。
 ## 项目概述
 
-M3U8 Proxy Filter Script 是一个多语言实现的 HLS (HTTP Live Streaming) 代理过滤脚本，支持Nodejs、Cloudflare Worker、Deno 和 PHP 环境。脚本提供 M3U8 播放链接的去广告、代理加速功能，并支持多种 HLS 协议特性。
+M3U8 Proxy Filter Script 是一个多语言实现的 HLS (HTTP Live Streaming) 代理过滤脚本，支持Nodejs、Cloudflare Worker(cf page)、Deno 和 PHP 环境。脚本提供 M3U8 播放链接的去广告、代理加速功能，并支持多种 HLS 协议特性。
 
 ## 功能特性
 
@@ -35,7 +35,7 @@ deno 部署：
 fork该项目，打开deno面板，导入复刻的项目，Entrypoint填写deno.ts
 
 cf worker 部署：
-新建kv后，绑定时设置变量名称为M3U8_PROXY_KV，复制worker.js到新建worker内部署
+新建kv后，绑定时设置变量名称为M3U8_PROXY_KV，复制worker.js到新建worker内部署。** worker-cache版不用配置kv **
 
 PHP 部署：
 把PHP脚本复制到PHP(CURL)环境服务器，设置伪静态规则
@@ -135,7 +135,8 @@ worker-cache.js
 1. 创建新的 Worker 项目
 2. 复制代码
 3. 部署脚本
-
+#### 如何将worker部署到cf pages？
+fork该项目，修改你要部署的cf worker脚本名为`_worker.js`，在cfpage中导入fork的仓库，如果是kv缓存还需要配置kv变量，如果是cache版则直接部署
 #### Deno
 ```bash
 deno install -gArf jsr:@deno/deployctl
