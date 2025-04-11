@@ -131,6 +131,7 @@ worker.js
 1. 创建新的 Worker 项目
 2. 绑定 KV 命名空间（名称为 `M3U8_PROXY_KV`）
 3. 部署脚本
+
 worker-cache.js
 1. 创建新的 Worker 项目
 2. 复制代码
@@ -138,14 +139,19 @@ worker-cache.js
 
 #### 如何将worker部署到cf pages？
 第一种：fork该项目，修改你要部署的cf worker脚本名为`_worker.js`，在cfpage中导入fork的仓库，如果是kv缓存还需要配置kv变量，如果是cache版则直接部署。
+
 第二种：下载cf worker脚本，重命名为_worker.js，并打包成_worker.js.zip
 在 Cloudflare Pages 控制台中选择 上传资产后，为你的项目取名后点击 创建项目，然后上传你压缩好的 _worker.js.zip 文件后点击 部署站点。
 部署完成后点击 继续处理站点 后，选择 设置 > 环境变量 > 制作为生产环境定义变量 > 添加KV变量（如果不是cf kv版可不用设置），点击保存。
 返回 部署 选项卡，在右下角点击 创建新部署 后，重新上传 _worker.js.zip 文件后点击 保存并部署 即可。
 
 #### Deno
+fork该项目,在deno控制面板导入fork的项目，安装和部署命令参考下方代码块，
+选择边缘节点自带cache api版(deno-cache.js)和内存缓存版(deno.js)都可以，Entrypoint配置项填写deno-cache.js或deno.ts，部署后返回Github action打开deploy进行授权
 ```bash
+安装
 deno install -gArf jsr:@deno/deployctl
+部署
 deployctl deploy
 ```
 
