@@ -2,7 +2,7 @@
 # 项目说明文档
 
 # 代理地址说明
-脚本内示例的代理地址`https://proxy.mengze.vip/proxy/`已失效，轻自行部署cf代理或其他代理进行替换，cf代理部署参考[cloudflare-safeproxy](https://github.com/eraycc/cloudflare-safeproxy)，部署后，将代理地址替换为API代理地址，URL编码配置为false(也可自行修改cf代理脚本代码，使其支持URL编码)。
+脚本内示例的代理地址`https://proxy.mengze.vip/proxy/`已失效，请自行部署cf代理或其他代理进行替换，cf代理部署参考[cloudflare-safeproxy](https://github.com/eraycc/cloudflare-safeproxy)，部署后，将代理地址替换为API代理地址，URL编码配置为false(也可自行修改cf代理脚本代码，使其支持URL编码)。
 ## 项目概述
 
 M3U8 Proxy Filter Script 是一个多语言实现的 HLS (HTTP Live Streaming) 代理过滤脚本，支持Nodejs、Cloudflare Worker、Deno 和 PHP 环境。脚本提供 M3U8 播放链接的去广告、代理加速功能，并支持多种 HLS 协议特性。
