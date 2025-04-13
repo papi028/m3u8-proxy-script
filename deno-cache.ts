@@ -18,11 +18,13 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 // Configuration
 const CONFIG = {
   PORT: 8000,
-  PROXY_URL: 'https://proxy.mengze.vip/proxy/',   // Main proxy URL (leave empty for direct fetch)
-  PROXY_URLENCODE: true,                         // Whether to URL-encode target URLs
   
-  PROXY_TS: 'https://proxy.mengze.vip/proxy/',   // TS segment proxy URL
-  PROXY_TS_URLENCODE: true,                      // Whether to URL-encode TS URLs
+  PROXY_URL: Deno.env.get("PROXY_URL") || '',
+  // 如果环境变量未设置，默认 false；否则解析 "true"/"false"
+  PROXY_URLENCODE: Deno.env.get("PROXY_URLENCODE")?.toLowerCase() === "true" || false,
+  PROXY_TS: Deno.env.get("PROXY_TS") || '',
+  // 如果环境变量未设置，默认 false；否则解析 "true"/"false"
+  PROXY_TS_URLENCODE: Deno.env.get("PROXY_TS_URLENCODE")?.toLowerCase() === "true" || false,
   
   CACHE_TTL: 86400,                              // Cache TTL in seconds (24 hours)
   CACHE_NAME: 'm3u8-proxy-cache',                // Cache storage name
