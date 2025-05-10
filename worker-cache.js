@@ -104,10 +104,10 @@ async function handleRequest(request) {
     }
     
     // Process the M3U8 content
-    const processed1 = await processM3u8Content(targetUrl, content, 0);
+    let processed = await processM3u8Content(targetUrl, content, 0);
     //是否智能过滤广告
     if (CONFIG.FILTER_ADS_INTELLIGENTLY) {
-      const processed = SuperFilterAdsFromM3U8(processed1, CONFIG.FILTER_REGEX);
+      processed = SuperFilterAdsFromM3U8(processed, CONFIG.FILTER_REGEX);
     }
     
     // Cache the result
