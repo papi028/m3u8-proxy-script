@@ -30,8 +30,10 @@ const CONFIG = {
   CACHE_ENABLED: true,
   CACHE_TTL: 3600,                               // Cache TTL in seconds
   
-  MAX_RECURSION: 50,                             // Max recursion for nested playlists
-  FILTER_DISCONTINUITY: true,                    // Whether to filter discontinuity markers
+  MAX_RECURSION: 30,                             // Max recursion for nested playlists
+  
+  FILTER_ADS_INTELLIGENTLY: true,                    // 启用智能过滤
+  FILTER_REGEX: null,   // 可选的正则过滤规则，例如: 'ad\.com|adsegment'
   
   USER_AGENTS: [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -154,7 +156,12 @@ async function handleRequest(request: Request): Promise<Response> {
     }
     
     // Process the M3U8 content
-    const processed = await processM3u8Content(targetUrl, content);
+    const processed1 = await processM3u8Content(targetUrl, content);
+    
+    //是否智能过滤广告
+    if (CONFIG.FILTER_ADS_INTELLIGENTLY) {
+      const processed = SuperFilterAdsFromM3U8(processed1, CONFIG.FILTER_REGEX);
+    }
     
     // Cache the result
     if (CONFIG.CACHE_ENABLED) {
@@ -171,6 +178,293 @@ async function handleRequest(request: Request): Promise<Response> {
       { "Content-Type": "text/plain" }
     );
   }
+}
+
+
+/**
+ * 超级M3U8广告算法过滤器
+ * @param {string} m3u8Content - 原始M3U8内容
+ * @param {string|null} regexFilter - 可选的正则过滤规则
+ * @return {string} 过滤后的完整M3U8内容
+ */
+function SuperFilterAdsFromM3U8(m3u8Content, regexFilter = null) {
+    if (!m3u8Content) return '';
+    
+    // ==================== 第一阶段：预处理 ====================
+    // 1. 正则过滤
+    let processedContent = regexFilter 
+        ? applyRegexFilter(m3u8Content, regexFilter) 
+        : m3u8Content;
+    
+    // 2. 解析M3U8结构
+    const { segments, headers } = parseM3U8Structure(processedContent);
+    if (segments.length === 0) return processedContent;
+    
+    // ==================== 第二阶段：科学分析 ====================
+    // 1. 计算基础统计量
+    const stats = calculateSegmentStats(segments);
+    
+    // 2. 多维度广告检测
+    const analyzedSegments = analyzeSegments(segments, stats);
+    
+    // 3. 智能过滤决策
+    const filteredSegments = applyFilterDecision(analyzedSegments, stats);
+    
+    // ==================== 第三阶段：重建M3U8 ====================
+    return rebuildM3U8(headers, filteredSegments, processedContent);
+}
+
+// ==================== 辅助函数 ====================
+
+/**
+ * 应用正则过滤
+ */
+function applyRegexFilter(content, regexFilter) {
+    try {
+        const regex = new RegExp(regexFilter, 'gi');
+        return content.replace(regex, '');
+    } catch (e) {
+        console.warn('正则过滤失败:', e);
+        return content;
+    }
+}
+
+/**
+ * 深度解析M3U8结构
+ */
+function parseM3U8Structure(content) {
+    const lines = content.split('\n');
+    const segments = [];
+    const headers = {
+        main: [],
+        other: []
+    };
+    let currentDiscontinuity = false;
+    let currentMap = null;
+    let segmentIndex = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        
+        // 收集头部信息
+        if (i < 10 && line.startsWith('#EXT')) {
+            headers.main.push(line);
+            continue;
+        }
+        
+        // 处理关键标签
+        if (line.startsWith('#EXT-X-MAP:')) {
+            currentMap = line;
+            continue;
+        }
+        
+        if (line.includes('#EXT-X-DISCONTINUITY')) {
+            currentDiscontinuity = true;
+            continue;
+        }
+        
+        // 解析片段
+        if (line.startsWith('#EXTINF:')) {
+            const durationMatch = line.match(/#EXTINF:([\d.]+)/);
+            if (durationMatch && lines[i + 1] && !lines[i + 1].startsWith('#')) {
+                const duration = parseFloat(durationMatch[1]);
+                const url = lines[i + 1].trim();
+                
+                segments.push({
+                    index: segmentIndex++,
+                    startLine: i,
+                    endLine: i + 1,
+                    duration,
+                    url,
+                    hasDiscontinuity: currentDiscontinuity,
+                    hasMap: currentMap !== null,
+                    content: currentMap 
+                        ? [currentMap, line, lines[i + 1]].join('\n')
+                        : [line, lines[i + 1]].join('\n'),
+                    isAd: false,  // 初始标记
+                    adScore: 0    // 广告概率得分
+                });
+                
+                currentDiscontinuity = false;
+                currentMap = null;
+                i++; // 跳过URL行
+            }
+        } else if (line.startsWith('#')) {
+            headers.other.push(line);
+        }
+    }
+    
+    return { segments, headers };
+}
+
+/**
+ * 计算高级统计量
+ */
+function calculateSegmentStats(segments) {
+    const durations = segments.map(s => s.duration);
+    const totalDuration = durations.reduce((sum, d) => sum + d, 0);
+    const avgDuration = totalDuration / durations.length;
+    
+    // 计算标准差和百分位数
+    const squaredDiffs = durations.map(d => Math.pow(d - avgDuration, 2));
+    const stdDev = Math.sqrt(squaredDiffs.reduce((sum, sd) => sum + sd, 0) / durations.length);
+    
+    // 排序后的时长数组用于百分位计算
+    const sortedDurations = [...durations].sort((a, b) => a - b);
+    const p10 = sortedDurations[Math.floor(durations.length * 0.1)];
+    const p90 = sortedDurations[Math.floor(durations.length * 0.9)];
+    
+    return {
+        avgDuration,
+        stdDev,
+        p10,
+        p90,
+        totalDuration,
+        segmentCount: segments.length,
+        durationRange: [sortedDurations[0], sortedDurations[sortedDurations.length - 1]]
+    };
+}
+
+/**
+ * 多维度片段分析
+ */
+function analyzeSegments(segments, stats) {
+    const { avgDuration, stdDev, p10, p90 } = stats;
+    
+    return segments.map(segment => {
+        const deviation = Math.abs(segment.duration - avgDuration);
+        const zScore = deviation / stdDev;
+        
+        // 1. 时长异常检测
+        const durationAbnormality = Math.min(1, zScore / 3); // 0-1范围
+        
+        // 2. 位置异常检测（开头/结尾的短片段更可能是广告）
+        let positionFactor = 0;
+        if (segment.index < 3 && segment.duration < p10) {
+            positionFactor = 0.8; // 开头的短片段很可疑
+        } else if (segment.index > segments.length - 3 && segment.duration < p10) {
+            positionFactor = 0.5; // 结尾的短片段中等可疑
+        }
+        
+        // 3. 不连续标记检测
+        const discontinuityFactor = segment.hasDiscontinuity ? 0.3 : 0;
+        
+        // 综合广告概率
+        const adScore = Math.min(1, 
+            (durationAbnormality * 0.6) + 
+            (positionFactor * 0.3) + 
+            (discontinuityFactor * 0.1)
+        );
+        
+        return {
+            ...segment,
+            adScore,
+            isAd: adScore > 0.65, // 阈值可调整
+            stats: { deviation, zScore }
+        };
+    });
+}
+
+/**
+ * 智能过滤决策
+ */
+function applyFilterDecision(segments, stats) {
+    const { avgDuration, stdDev } = stats;
+    
+    // 动态调整阈值
+    const baseThreshold = 0.65;
+    const dynamicThreshold = Math.min(0.8, Math.max(0.5, 
+        baseThreshold - (stdDev / avgDuration) * 0.2
+    ));
+    
+    return segments.filter(segment => {
+        // 明确广告标记
+        if (segment.isAd && segment.adScore > dynamicThreshold) {
+            return false;
+        }
+        
+        // 极短片段过滤（<1秒且不在开头）
+        if (segment.duration < 1.0 && segment.index > 3) {
+            return false;
+        }
+        
+        // 保留关键片段（如包含MAP的）
+        if (segment.hasMap) {
+            return true;
+        }
+        
+        // 默认保留
+        return true;
+    });
+}
+
+/**
+ * 完美重建M3U8
+ */
+function rebuildM3U8(headers, segments, originalContent) {
+    // 收集需要保留的行号
+    const keepLines = new Set();
+    
+    // 保留所有头部信息
+    headers.main.forEach((_, i) => keepLines.add(i));
+    
+    // 保留所有片段内容
+    segments.forEach(segment => {
+        for (let i = segment.startLine; i <= segment.endLine; i++) {
+            keepLines.add(i);
+        }
+    });
+    
+    // 处理其他关键标签
+    const lines = originalContent.split('\n');
+    const criticalTags = [
+        '#EXT-X-VERSION',
+        '#EXT-X-TARGETDURATION',
+        '#EXT-X-MEDIA-SEQUENCE',
+        '#EXT-X-PLAYLIST-TYPE',
+        '#EXT-X-ENDLIST'
+    ];
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (criticalTags.some(tag => line.startsWith(tag))) {
+            keepLines.add(i);
+        }
+    }
+    
+    // 重建内容
+    const filteredLines = lines.filter((_, i) => keepLines.has(i));
+    
+    // 更新关键头部信息
+    updateM3U8Headers(filteredLines, segments);
+    
+    return filteredLines.join('\n');
+}
+
+/**
+ * 更新M3U8头部信息
+ */
+function updateM3U8Headers(lines, segments) {
+    if (segments.length === 0) return;
+    
+    // 更新TARGETDURATION
+    const maxDuration = Math.max(...segments.map(s => s.duration));
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('#EXT-X-TARGETDURATION')) {
+            lines[i] = `#EXT-X-TARGETDURATION:${Math.ceil(maxDuration)}`;
+            break;
+        }
+    }
+    
+    // 更新MEDIA-SEQUENCE
+    if (segments[0].index > 0) {
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].startsWith('#EXT-X-MEDIA-SEQUENCE')) {
+                lines[i] = `#EXT-X-MEDIA-SEQUENCE:${segments[0].index}`;
+                break;
+            }
+        }
+    }
 }
 
 /**
@@ -377,11 +671,6 @@ function processMediaPlaylist(url: string, content: string): string {
     
     // Skip empty lines
     if (!line) continue;
-    
-    // Filter discontinuity markers if enabled
-    if (CONFIG.FILTER_DISCONTINUITY && line === '#EXT-X-DISCONTINUITY') {
-      continue;
-    }
     
     // Handle EXT-X-KEY (encryption)
     if (line.startsWith('#EXT-X-KEY')) {
